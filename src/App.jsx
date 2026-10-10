@@ -1,8 +1,7 @@
-
 import logo from "./assets/logo.png";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "./supabaseClient";
 import "./App.css";
-
 
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday"];
 const mealTypes = ["Breakfast", "Lunch", "Dinner"];
@@ -24,10 +23,10 @@ const recipes = [
   },
   {
     id: 3,
-    name: "Chicken wrap",
-    type: "Lunch",
-    time: 15,
-    ingredients: ["Chicken", "Wraps", "Lettuce"],
+    name: "Spaghetti",
+    type: "Dinner",
+    time: 20,
+    ingredients: ["Pasta", "Garlic", "Mince"]
   },
   {
     id: 4,
@@ -89,6 +88,47 @@ function App() {
   const [checkedItems, setCheckedItems] = useState([]);
   const [viewingRecipe, setViewingRecipe] = useState(null);
 
+  // The latest fetch result, stored together with the id it belongs to.
+  const [recipeResult, setRecipeResult] = useState(null);
+
+  // Fetch the full recipe row whenever a recipe is opened.
+  // State is only set inside .then(), never synchronously in the effect body.
+  // This must stay above the `if (viewingRecipe)` early return below,
+  // because hooks can't be called after a conditional return.
+  useEffect(() => {
+    if (!viewingRecipe) return undefined;
+
+    let cancelled = false;
+    const id = viewingRecipe.id;
+
+    supabase
+      .from("Recipes")
+      .select("*")
+      .eq("id", id)
+      .single()
+      .then(({ data, error }) => {
+        // Ignore the result if the user has already clicked something else
+        if (cancelled) return;
+        if (error) console.error(error);
+        setRecipeResult({ id, data, error: error?.message ?? null });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [viewingRecipe]);
+
+  // Derived during render, so there's nothing to reset when the recipe changes.
+  // A stored result only counts if it belongs to the recipe being viewed.
+  const resultIsCurrent =
+    viewingRecipe !== null && recipeResult?.id === viewingRecipe.id;
+  const recipeLoading = viewingRecipe !== null && !resultIsCurrent;
+  const recipeData = resultIsCurrent ? recipeResult.data : null;
+  const recipeError = resultIsCurrent ? recipeResult.error : null;
+
+  // Returns the value if it's an array, otherwise an empty list.
+  const asList = (value) => (Array.isArray(value) ? value : []);
+
   // Build the shopping list from all selected meals.
   const shoppingItems = [
     ...new Set(
@@ -143,143 +183,147 @@ function App() {
     );
   }
 
-  
-const recipeDetails = {
-  1: {
-    difficulty: "Easy",
-    ingredients: [
-      "50g oats",
-      "250ml milk",
-      "1 banana",
-    ],
-    instructions: [
-      "Add the oats and milk to a saucepan.",
-      "Heat gently for 4–5 minutes, stirring regularly.",
-      "Slice the banana and add it on top.",
-      "Enjoy your breakfast!",
-    ],
-  },
-  2: {
-    difficulty: "Easy",
-    ingredients: [
-      "2 eggs",
-      "2 slices of bread",
-    ],
-    instructions: [
-      "Toast the bread.",
-      "Cook the eggs to your liking.",
-      "Place the eggs on the toast and serve.",
-    ],
-  },
-  3: {
-    difficulty: "Easy",
-    ingredients: [
-      "1 chicken portion",
-      "1 wrap",
-      "A handful of lettuce",
-    ],
-    instructions: [
-      "Cook the chicken thoroughly.",
-      "Wash and prepare the lettuce.",
-      "Place the chicken and lettuce in the wrap.",
-      "Fold, serve and enjoy!",
-    ],
-  },
-};
+  // ---------- Recipe detail page ----------
+  if (viewingRecipe) {
+    return (
+      <div className="app">
+        <header className="topbar">
+          <a
+            className="brand"
+            href="#"
+            onClick={(event) => {
+              event.preventDefault();
+              setViewingRecipe(null);
+            }}
+          >
+            <span>Don't Starve in Uni!</span>
+            <img
+              className="brand-logo"
+              src={logo}
+              alt="Don't Starve in Uni logo"
+            />
+          </a>
+        </header>
 
+        <main className="page recipe-page">
+          <button
+            className="back-button"
+            onClick={() => setViewingRecipe(null)}
+          >
+            ← Back to meal planner
+          </button>
 
-if (viewingRecipe) {
-  const details = recipeDetails[viewingRecipe.id];
+          {recipeLoading && <p className="subtitle">Loading recipe...</p>}
 
+          {recipeError && (
+            <p className="subtitle">
+              Couldn't load this recipe: {recipeError}
+            </p>
+          )}
+
+          {recipeData && (
+            <>
+              <section className="recipe-hero">
+                <p className="eyebrow">TONIGHT'S MASTERPIECE</p>
+                <h1>{recipeData.name}</h1>
+
+                <div className="recipe-meta">
+                  {recipeData.time_mins && (
+                    <span>⏱️ {recipeData.time_mins} minutes</span>
+                  )}
+                  <span>👨‍🍳 {recipeData.difficulty ?? "Easy"}</span>
+                  <span>💸 Student budget friendly</span>
+                </div>
+
+                {asList(recipeData.dietaryRestrictions).length > 0 && (
+                  <div className="recipe-tags">
+                    <span className="recipe-tags-label">Suitable for:</span>
+                    {asList(recipeData.dietaryRestrictions).map((tag) => (
+                      <span className="recipe-tag" key={tag}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {asList(recipeData.cookingUtensils).length > 0 && (
+                  <div className="recipe-tags">
+                    <span className="recipe-tags-label">You'll need:</span>
+                    {asList(recipeData.cookingUtensils).map((item) => (
+                      <span className="recipe-tag" key={item}>
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {recipeData.image_url && (
+                  <img
+                    className="recipe-image"
+                    src={recipeData.image_url}
+                    alt={recipeData.name}
+                  />
+                )}
+              </section>
+
+              <div className="recipe-layout">
+                <section className="recipe-panel">
+                  <p className="eyebrow">THE SHOPPING BIT</p>
+                  <h2>Ingredients</h2>
+
+                  <div className="recipe-ingredients">
+                    {(Array.isArray(recipeData.ingredients)
+                      ? recipeData.ingredients
+                      : []
+                    ).map((ingredient) => (
+                      <label key={ingredient}>
+                        <input type="checkbox" />
+                        <span>{ingredient}</span>
+                      </label>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="recipe-panel">
+                  <p className="eyebrow">LET'S GET COOKING</p>
+                  <h2>Instructions</h2>
+
+                  {Array.isArray(recipeData.instructions) &&
+                  recipeData.instructions.length > 0 ? (
+                    <ol className="recipe-instructions">
+                      {recipeData.instructions.map((step, index) => (
+                        <li key={`${index}-${step}`}>
+                          <span>{index + 1}</span>
+                          <p>{step}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className="subtitle">
+                      Instructions coming soon! Your ingredients are
+                      ready, so you're halfway to dinner.
+                    </p>
+                  )}
+                </section>
+              </div>
+            </>
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // ---------- Meal planner page ----------
   return (
     <div className="app">
       <header className="topbar">
-        <a className="brand" href="#"
-          onClick={(event) => {
-            event.preventDefault();
-            setViewingRecipe(null);
-          }}
-        >
+        <a className="brand" href="#">
           <span>Don't Starve in Uni!</span>
           <img
             className="brand-logo"
             src={logo}
             alt="Don't Starve in Uni logo"
           />
-        </a>
-      </header>
-
-      <main className="page recipe-page">
-        <button
-          className="back-button"
-          onClick={() => setViewingRecipe(null)}
-        >
-          ← Back to meal planner
-        </button>
-
-        <section className="recipe-hero">
-          <p className="eyebrow">TONIGHT'S MASTERPIECE</p>
-          <h1>{viewingRecipe.name}</h1>
-
-          <p className="subtitle">
-            A student-friendly recipe that won't break the bank.
-          </p>
-
-          <div className="recipe-meta">
-            <span>⏱️ {viewingRecipe.time} minutes</span>
-            <span>👨‍🍳 {details?.difficulty ?? "Easy"}</span>
-            <span>💸 Student budget friendly</span>
-          </div>
-        </section>
-
-        <div className="recipe-layout">
-          <section className="recipe-panel">
-            <p className="eyebrow">THE SHOPPING BIT</p>
-            <h2>Ingredients</h2>
-
-            <div className="recipe-ingredients">
-              {(details?.ingredients ??
-                viewingRecipe.ingredients).map((ingredient) => (
-                <label key={ingredient}>
-                  <input type="checkbox" />
-                  <span>{ingredient}</span>
-                </label>
-              ))}
-            </div>
-          </section>
-
-          <section className="recipe-panel">
-            <p className="eyebrow">LET'S GET COOKING</p>
-            <h2>Instructions</h2>
-
-            {details ? (
-              <ol className="recipe-instructions">
-                {details.instructions.map((step, index) => (
-                  <li key={step}>
-                    <span>{index + 1}</span>
-                    <p>{step}</p>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="subtitle">
-                Instructions coming soon! Your ingredients are
-                ready, so you're halfway to dinner.
-              </p>
-            )}
-          </section>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-  return (
-    <div className="app">
-      <header className="topbar">
-        <a className="brand" href="#">
-        <span>Don't Starve in Uni!</span>
-        <img className="brand-logo" src={logo} alt="Don't Starve in Uni logo" />
         </a>
 
         <nav>
@@ -297,7 +341,8 @@ if (viewingRecipe) {
           <div>
             <h1>Meal Planner</h1>
             <p className="subtitle">
-              Survive the weekly food shop, dodge another sad instant noodle dinner, and pretend you've got your life together...
+              Survive the weekly food shop, dodge another sad instant noodle
+              dinner, and pretend you've got your life together...
             </p>
           </div>
         </section>
@@ -311,70 +356,72 @@ if (viewingRecipe) {
               </div>
             </div>
 
-<div className="timetable">
-  {/* Header row: days across the top */}
-  <div className="timetable-corner">MEALS</div>
+            <div className="timetable">
+              {/* Header row: days across the top */}
+              <div className="timetable-corner">MEALS</div>
 
-  {days.map((day) => (
-    <div className="timetable-day" key={day}>
-      {day}
-    </div>
-  ))}
+              {days.map((day) => (
+                <div className="timetable-day" key={day}>
+                  {day}
+                </div>
+              ))}
 
-  {/* Each meal type gets its own row */}
-  {mealTypes.map((type) => (
-    <React.Fragment key={type}>
-      <div className="timetable-label">
-        {type === "Breakfast"
-          ? "🥣"
-          : type === "Lunch"
-            ? "🥪"
-            : "🍝"}
-        <span>{type}</span>
-      </div>
+              {/* Each meal type gets its own row */}
+              {mealTypes.map((type) => (
+                <React.Fragment key={type}>
+                  <div className="timetable-label">
+                    {type === "Breakfast"
+                      ? "🥣"
+                      : type === "Lunch"
+                        ? "🥪"
+                        : "🍝"}
+                    <span>{type}</span>
+                  </div>
 
-      {days.map((day) => {
-        const meal = mealPlan[day][type];
+                  {days.map((day) => {
+                    const meal = mealPlan[day][type];
 
-        return (
-          <div className="timetable-cell" key={day}>
+                    return (
+                      <div className="timetable-cell" key={day}>
+                        {meal ? (
+                          <div className="meal-card">
+                            <button
+                              className="recipe-link"
+                              onClick={() => setViewingRecipe(meal)}
+                            >
+                              <strong>{meal.name}</strong>
+                              <small>◷ {meal.time} mins</small>
+                              <span className="view-recipe">
+                                View recipe →
+                              </span>
+                            </button>
 
-{meal ? (
-  <div className="meal-card">
-    <button
-      className="recipe-link"
-      onClick={() => setViewingRecipe(meal)}
-    >
-      <strong>{meal.name}</strong>
-      <small>◷ {meal.time} mins</small>
-      <span className="view-recipe">View recipe →</span>
-    </button>
+                            <button
+                              className="text-button"
+                              onClick={() => removeMeal(day, type)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            className="add-meal"
+                            onClick={() => openMealPicker(day, type)}
+                          >
+                            <span>+</span>
+                            Add meal
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </div>
 
-    <button
-      className="text-button"
-      onClick={() => removeMeal(day, type)}
-    >
-      Remove
-    </button>
-  </div>
-) : (
-              <button
-                className="add-meal"
-                onClick={() => openMealPicker(day, type)}
-              >
-                <span>+</span>
-                Add meal
-              </button>
-            )}
-          </div>
-        );
-      })}
-    </React.Fragment>
-  ))}
-</div>
             <p className="planner-hint">
-              💡 Tip: choose meals that share ingredients to save
-              money and reduce food waste.
+              💡 Tip: choose meals that share ingredients to save money and
+              reduce food waste.
             </p>
           </section>
 
@@ -394,9 +441,11 @@ if (viewingRecipe) {
             <div className="shopping-progress">
               <div className="progress-label">
                 <span>
-                  {checkedItems.filter((item) =>
-                    shoppingItems.includes(item)
-                  ).length}{" "}
+                  {
+                    checkedItems.filter((item) =>
+                      shoppingItems.includes(item)
+                    ).length
+                  }{" "}
                   of {shoppingItems.length} collected
                 </span>
                 <span>
@@ -448,9 +497,7 @@ if (viewingRecipe) {
                     />
                     <span
                       className={
-                        checkedItems.includes(item)
-                          ? "item-checked"
-                          : ""
+                        checkedItems.includes(item) ? "item-checked" : ""
                       }
                     >
                       {item}
@@ -512,9 +559,7 @@ if (viewingRecipe) {
             <select
               id="recipe-select"
               value={selectedRecipe}
-              onChange={(event) =>
-                setSelectedRecipe(event.target.value)
-              }
+              onChange={(event) => setSelectedRecipe(event.target.value)}
             >
               <option value="">Select a recipe...</option>
               {recipes

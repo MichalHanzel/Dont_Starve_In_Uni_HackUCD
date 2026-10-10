@@ -11,10 +11,13 @@ export async function getRecipieById(id) {
   return data;
 }
 
-export async function createRecipie({ name, meal, dietaryRestrictions, cookingUtensils, difficulty, ingredients }) {
+export async function createRecipie({ name, mealType, difficulty, dietaryTags, utensils, ingredients, instructions, timeMins, imageUrl }) {
   const { data, error } = await supabase
     .from('Recipes')
-    .insert({ name, meal, dietaryRestrictions, cookingUtensils, difficulty, ingredients })
+    .insert({
+      name, mealType, difficulty, dietaryTags, utensils, ingredients,
+      instructions, time_mins: timeMins, image_url: imageUrl,
+    })
     .select()
     .single();
 
