@@ -6,7 +6,11 @@ We povide a recipes and shopping lists to get you from surving your first few we
 
 
 ## Runnig the Prototype
-
+to run our website:
+* download from the github
+* run node server.js
+* npm install
+* npm run dev
 
 ## Contributors:
 | Name          | Role           |
