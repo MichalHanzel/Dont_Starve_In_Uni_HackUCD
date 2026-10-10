@@ -1,0 +1,14 @@
+{
+  "name": "DontStarveInUni",
+  "type": "module",
+  "main": "index.js",
+  
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "dotenv": "^18.0.7",
+    "supabase": "^2.120.0"
+  }
+}
