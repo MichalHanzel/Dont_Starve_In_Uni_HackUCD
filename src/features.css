@@ -1,0 +1,105 @@
+/* Styles for the AI meal suggestions (planner page) and the test-mode
+   subscription card (profile page). Kept in its own file so it can't clash
+   with App.css. */
+
+/* ---------- Planner: suggest meals ---------- */
+
+.ai-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.ai-clear {
+  padding: 8px 16px;
+  border: 1px solid #d5ddd8;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.ai-clear:hover {
+  border-color: #2e7d4f;
+  color: #2e7d4f;
+}
+
+.ai-clear:focus-visible {
+  outline: 2px solid #2e7d4f;
+  outline-offset: 2px;
+}
+
+.ai-message {
+  max-width: 60ch;
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #e7f3ec;
+  color: #1c2b22;
+}
+
+.ai-message--error {
+  background: #fdeceb;
+  color: #8a1f17;
+}
+
+/* ---------- Profile: subscription card ---------- */
+
+.pf-sub {
+  padding: 24px 28px;
+  background: var(--pf-surface, #ffffff);
+  border: 1px solid var(--pf-line, #e2e9e4);
+  border-radius: var(--pf-radius, 18px);
+}
+
+.pf-sub-banner {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--pf-accent-soft, #e7f3ec);
+  color: var(--pf-ink, #1c2b22);
+}
+
+.pf-sub-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.pf-sub h2 {
+  margin: 0 0 4px;
+  color: var(--pf-ink, #1c2b22);
+}
+
+.pf-sub-text {
+  max-width: 52ch;
+  margin: 0;
+  color: var(--pf-muted, #66756b);
+}
+
+.pf-sub-test {
+  max-width: 56ch;
+  margin: 8px 0 0;
+  color: var(--pf-muted, #66756b);
+  font-size: 0.85rem;
+}
+
+.pf-sub-test code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--pf-accent-soft, #e7f3ec);
+  color: var(--pf-ink, #1c2b22);
+}
+
+.pf-sub-error {
+  margin: 10px 0 0;
+  color: #8a1f17;
+  font-size: 0.9rem;
+}

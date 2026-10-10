@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
 import "./App.css";
 import "./profile-page.css";
+import "./features.css";
 
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday"];
 const mealTypes = ["Breakfast", "Lunch", "Dinner"];
@@ -85,6 +86,39 @@ const initialPlan = {
 // Emoji shown on a favourite card when the recipe has no photo yet
 const mealEmoji = { Breakfast: "🥣", Lunch: "🥪", Dinner: "🍝" };
 
+// Sends JSON to our Node API (proxied from /api by vite.config.js) and
+// returns the JSON reply, or throws an Error with a readable message.
+async function postJson(url, body) {
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error("Couldn't reach the server. Is it running? (node server.js)");
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || `Request failed (${response.status})`);
+  }
+  return payload;
+}
+
+// Turns a row from the Supabase "Recipes" table into the shape the planner uses.
+function toPlannerRecipe(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.mealType,
+    time: row.time_mins,
+    ingredients: Array.isArray(row.ingredients) ? row.ingredients : [],
+    image_url: row.image_url ?? null,
+  };
+}
+
 // Options shown on the onboarding / preferences page
 const preferenceOptions = {
   equipment: ["Microwave", "Hob", "Oven", "Air fryer", "Toaster", "Kettle"],
@@ -120,11 +154,15 @@ function App() {
   // ---------- Navigation ----------
   // New users start on the onboarding page; once they've saved their
   // preferences they go straight to the planner on later visits.
-  const [currentPage, setCurrentPage] = useState(() =>
-    localStorage.getItem("onboardingCompleted") === "true"
+  const [currentPage, setCurrentPage] = useState(() => {
+    // Coming back from Stripe checkout? Land on the profile page.
+    if (new URLSearchParams(window.location.search).has("checkout")) {
+      return "profile";
+    }
+    return localStorage.getItem("onboardingCompleted") === "true"
       ? "planner"
-      : "onboarding"
-  );
+      : "onboarding";
+  });
 
   // ---------- Preferences (saved in the browser) ----------
   const [preferences, setPreferences] = useState(() => {
@@ -157,6 +195,29 @@ function App() {
   // Bump this number to re-fetch the favourites from the database
   const [favouritesVersion, setFavouritesVersion] = useState(0);
 
+  // Full recipe rows from Supabase (null until loaded). The planner uses the
+  // built-in list until they arrive.
+  const [dbRecipes, setDbRecipes] = useState(null);
+
+  // AI meal suggestions
+  const [isPlanning, setIsPlanning] = useState(false);
+  const [planMessage, setPlanMessage] = useState(null); // { kind, text }
+
+  // Stripe test-mode checkout. Stripe sends people back to
+  // /?checkout=success or /?checkout=cancelled.
+  const [checkoutStatus] = useState(() =>
+    new URLSearchParams(window.location.search).get("checkout")
+  );
+  const [subscribed, setSubscribed] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success") {
+      localStorage.setItem("testSubscribed", "true");
+    }
+    return localStorage.getItem("testSubscribed") === "true";
+  });
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+  const [checkoutError, setCheckoutError] = useState(null);
+
   // The latest Supabase fetch result, stored together with the id it
   // belongs to.
   const [recipeResult, setRecipeResult] = useState(null);
@@ -165,6 +226,38 @@ function App() {
   useEffect(() => {
     localStorage.setItem("studentName", studentName);
   }, [studentName]);
+
+  // Tidy ?checkout=... out of the address bar after reading it
+  useEffect(() => {
+    if (window.location.search) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  // Load every recipe from Supabase, so the planner dropdown and the AI both
+  // work from the same list as the recipe pages.
+  useEffect(() => {
+    let cancelled = false;
+
+    supabase
+      .from("Recipes")
+      .select(
+        "id, name, mealType, time_mins, ingredients, cookingUtensils, dietaryRestrictions, difficulty, image_url"
+      )
+      .order("id")
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Couldn't load recipes:", error.message);
+          return;
+        }
+        if (data?.length) setDbRecipes(data);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Sign in anonymously (or reuse the saved session) so each browser gets
   // its own user id to attach favourites to.
@@ -259,6 +352,10 @@ function App() {
   // Returns the value if it's an array, otherwise an empty list.
   const asList = (value) => (Array.isArray(value) ? value : []);
 
+  // The recipes the planner can offer: from Supabase once loaded, otherwise
+  // the built-in list.
+  const catalog = dbRecipes ? dbRecipes.map(toPlannerRecipe) : recipes;
+
   // Just the ids, for the quick "is this a favourite?" checks on the hearts.
   const favoriteRecipeIds = favourites.map((recipe) => recipe.id);
 
@@ -344,6 +441,105 @@ function App() {
     setFavouritesVersion((version) => version + 1);
   }
 
+  // Ask the AI to fill the empty slots. It only ever picks recipes that fit
+  // the saved preferences, and it never overwrites a meal that's already there.
+  async function planWithAI() {
+    if (isPlanning) return;
+
+    if (!dbRecipes) {
+      setPlanMessage({
+        kind: "error",
+        text: "Recipes are still loading. Try again in a moment.",
+      });
+      return;
+    }
+
+    const slots = [];
+    days.forEach((day) => {
+      mealTypes.forEach((type) => {
+        if (!mealPlan[day][type]) slots.push({ day, type });
+      });
+    });
+
+    if (slots.length === 0) {
+      setPlanMessage({
+        kind: "info",
+        text: "Every slot is full. Remove a meal or clear the week to get new suggestions.",
+      });
+      return;
+    }
+
+    const plannedIds = Object.values(mealPlan).flatMap((day) =>
+      Object.values(day)
+        .filter(Boolean)
+        .map((meal) => meal.id)
+    );
+
+    setIsPlanning(true);
+    setPlanMessage(null);
+
+    try {
+      const { assignments, note } = await postJson("/api/suggest-meals", {
+        preferences,
+        recipes: dbRecipes,
+        slots,
+        plannedIds,
+      });
+
+      const byId = new Map(catalog.map((recipe) => [recipe.id, recipe]));
+
+      setMealPlan((current) => {
+        const next = { ...current };
+        for (const { day, type, recipeId } of assignments) {
+          const recipe = byId.get(recipeId);
+          if (!recipe || current[day]?.[type]) continue;
+          next[day] = { ...next[day], [type]: recipe };
+        }
+        return next;
+      });
+
+      setPlanMessage({
+        kind: "info",
+        text: note || `Added ${assignments.length} meals to your week.`,
+      });
+    } catch (error) {
+      setPlanMessage({ kind: "error", text: error.message });
+    } finally {
+      setIsPlanning(false);
+    }
+  }
+
+  function clearWeek() {
+    setMealPlan(
+      Object.fromEntries(
+        days.map((day) => [
+          day,
+          Object.fromEntries(mealTypes.map((type) => [type, null])),
+        ])
+      )
+    );
+    setPlanMessage(null);
+  }
+
+  // Opens Stripe's hosted checkout (test mode only).
+  async function startCheckout() {
+    setIsStartingCheckout(true);
+    setCheckoutError(null);
+
+    try {
+      const { url } = await postJson("/api/create-checkout-session", { userId });
+      window.location.assign(url);
+    } catch (error) {
+      setCheckoutError(error.message);
+      setIsStartingCheckout(false);
+    }
+  }
+
+  function resetTestSubscription() {
+    localStorage.removeItem("testSubscribed");
+    setSubscribed(false);
+  }
+
   function openMealPicker(day, type) {
     setSelectedSlot({ day, type });
     setSelectedRecipe("");
@@ -352,7 +548,7 @@ function App() {
   function saveMeal() {
     if (!selectedSlot || !selectedRecipe) return;
 
-    const recipe = recipes.find(
+    const recipe = catalog.find(
       (item) => item.id === Number(selectedRecipe)
     );
 
@@ -659,6 +855,64 @@ function App() {
             </div>
           </section>
 
+          <section className="pf-sub" aria-labelledby="pf-sub-title">
+            {checkoutStatus === "success" && (
+              <p className="pf-sub-banner" role="status">
+                Test payment complete. No real money was taken.
+              </p>
+            )}
+            {checkoutStatus === "cancelled" && (
+              <p className="pf-sub-banner" role="status">
+                Checkout cancelled. You haven't been charged.
+              </p>
+            )}
+
+            <div className="pf-sub-body">
+              <div>
+                <h2 id="pf-sub-title">
+                  {subscribed ? "You're subscribed" : "Premium plan"}
+                </h2>
+                <p className="pf-sub-text">
+                  {subscribed
+                    ? "This is a test-mode subscription, so nothing real was charged."
+                    : "€4.99 a month."}
+                </p>
+
+                {!subscribed && (
+                  <p className="pf-sub-test">
+                    Test mode: pay with card <code>4242 4242 4242 4242</code>,
+                    any future expiry date and any CVC. No real money moves.
+                  </p>
+                )}
+
+                {checkoutError && (
+                  <p className="pf-sub-error" role="alert">
+                    {checkoutError}
+                  </p>
+                )}
+              </div>
+
+              {subscribed ? (
+                <button
+                  className="pf-ghost-button"
+                  onClick={resetTestSubscription}
+                >
+                  Reset test subscription
+                </button>
+              ) : (
+                <button
+                  className="primary-button"
+                  onClick={startCheckout}
+                  disabled={isStartingCheckout || !userId}
+                >
+                  {isStartingCheckout
+                    ? "Opening checkout…"
+                    : "Subscribe for €4.99/month"}
+                </button>
+              )}
+            </div>
+          </section>
+
           <section className="pf-section">
             <div className="pf-section-header">
               <h2>Favourite recipes</h2>
@@ -923,6 +1177,28 @@ function App() {
               Survive the weekly food shop, dodge another sad instant noodle
               dinner, and pretend you've got your life together...
             </p>
+
+            <div className="ai-actions">
+              <button
+                className="primary-button"
+                onClick={planWithAI}
+                disabled={isPlanning || !dbRecipes}
+              >
+                {isPlanning ? "Planning your week…" : "✨ Suggest meals for empty slots"}
+              </button>
+              <button className="ai-clear" onClick={clearWeek}>
+                Clear week
+              </button>
+            </div>
+
+            {planMessage && (
+              <p
+                className={`ai-message ai-message--${planMessage.kind}`}
+                role="status"
+              >
+                {planMessage.text}
+              </p>
+            )}
           </div>
         </section>
 
@@ -1164,7 +1440,7 @@ function App() {
               onChange={(event) => setSelectedRecipe(event.target.value)}
             >
               <option value="">Select a recipe...</option>
-              {recipes
+              {catalog
                 .filter((recipe) => recipe.type === selectedSlot.type)
                 .map((recipe) => (
                   <option key={recipe.id} value={recipe.id}>
