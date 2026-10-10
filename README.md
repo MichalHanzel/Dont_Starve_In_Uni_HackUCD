@@ -9,8 +9,8 @@ We povide a recipes and shopping lists to get you from surving your first few we
 
 
 ## Contributors:
-| Name          | Role     |
-| ------------- | -------- |
-| Ciara Behan   | Frontend |
-| Michal Hanzel ||
-| Tadhg Mulvey  ||
+| Name          | Role           |
+| ------------- | -------------- |
+| Ciara Behan   | Frontend       |
+| Michal Hanzel | Api integration|
+| Tadhg Mulvey  | Backend        |
