@@ -1,0 +1,343 @@
+/* Profile page styles.
+   Every class starts with pf- so nothing clashes with App.css.
+   Change the colours in the first block to match the rest of the app. */
+
+.pf-page {
+  --pf-ink: #1c2b22;
+  --pf-muted: #66756b;
+  --pf-accent: #2e7d4f;
+  --pf-accent-soft: #e7f3ec;
+  --pf-surface: #ffffff;
+  --pf-line: #e2e9e4;
+  --pf-star: #f2a413;
+  --pf-radius: 18px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.pf-page .back-button {
+  align-self: flex-start;
+}
+
+/* ---------- Hero ---------- */
+
+.pf-hero {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 28px 32px;
+  background: var(--pf-accent-soft);
+  border: 1px solid var(--pf-line);
+  border-radius: calc(var(--pf-radius) + 6px);
+}
+
+.pf-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: var(--pf-accent);
+  color: #ffffff;
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pf-hero-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.pf-hero-body h1 {
+  margin: 0 0 6px;
+  color: var(--pf-ink);
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  line-height: 1.15;
+}
+
+.pf-tagline {
+  margin: 0 0 14px;
+  max-width: 52ch;
+  color: var(--pf-muted);
+}
+
+.pf-stat {
+  flex: none;
+  padding: 14px 24px;
+  text-align: center;
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+}
+
+.pf-stat strong {
+  display: block;
+  color: var(--pf-ink);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.pf-stat span {
+  color: var(--pf-muted);
+  font-size: 0.85rem;
+}
+
+/* ---------- Buttons and name editor ---------- */
+
+.pf-ghost-button {
+  padding: 8px 16px;
+  border: 1px solid var(--pf-line);
+  border-radius: 999px;
+  background: var(--pf-surface);
+  color: var(--pf-ink);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.pf-ghost-button:hover {
+  border-color: var(--pf-accent);
+  color: var(--pf-accent);
+}
+
+.pf-ghost-button:focus-visible,
+.pf-name-input:focus-visible,
+.pf-card-link:focus-visible,
+.pf-star:focus-visible {
+  outline: 2px solid var(--pf-accent);
+  outline-offset: 2px;
+}
+
+.pf-name-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--pf-muted);
+  font-size: 0.9rem;
+}
+
+.pf-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pf-name-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 10px 14px;
+  border: 1px solid var(--pf-line);
+  border-radius: 12px;
+  background: var(--pf-surface);
+  color: var(--pf-ink);
+  font: inherit;
+}
+
+/* ---------- Favourites section ---------- */
+
+.pf-section-header h2 {
+  margin: 0;
+  color: var(--pf-ink);
+}
+
+.pf-section-header p {
+  margin: 4px 0 0;
+  color: var(--pf-muted);
+}
+
+.pf-section-header {
+  margin-bottom: 18px;
+}
+
+.pf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.pf-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+
+.pf-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(28, 43, 34, 0.12);
+}
+
+.pf-card-link {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pf-card-media {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--pf-accent-soft);
+}
+
+.pf-card-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.pf-card:hover .pf-card-photo {
+  transform: scale(1.04);
+}
+
+.pf-card-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: var(--pf-accent-soft);
+  font-size: 3rem;
+}
+
+.pf-card-placeholder--breakfast {
+  background: #fff1d6;
+}
+
+.pf-card-placeholder--lunch {
+  background: #e3f1fb;
+}
+
+.pf-card-placeholder--dinner {
+  background: #fbe6e1;
+}
+
+.pf-card-type {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--pf-ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.pf-card-body {
+  padding: 14px 16px 18px;
+}
+
+.pf-card-body h3 {
+  margin: 0 0 4px;
+  color: var(--pf-ink);
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+
+.pf-card-meta {
+  margin: 0;
+  color: var(--pf-muted);
+  font-size: 0.88rem;
+}
+
+.pf-star {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  color: var(--pf-star);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.pf-star:hover {
+  transform: scale(1.1);
+}
+
+/* ---------- Loading and empty states ---------- */
+
+.pf-skeleton {
+  min-height: 240px;
+  border-radius: var(--pf-radius);
+  background: var(--pf-accent-soft);
+  opacity: 0.6;
+}
+
+.pf-empty {
+  padding: 48px 24px;
+  text-align: center;
+  border: 2px dashed var(--pf-line);
+  border-radius: var(--pf-radius);
+}
+
+.pf-empty span {
+  font-size: 2.6rem;
+}
+
+.pf-empty h3 {
+  margin: 12px 0 6px;
+  color: var(--pf-ink);
+}
+
+.pf-empty p {
+  max-width: 40ch;
+  margin: 0 auto 20px;
+  color: var(--pf-muted);
+}
+
+/* ---------- Small screens and reduced motion ---------- */
+
+@media (max-width: 640px) {
+  .pf-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 22px;
+  }
+
+  .pf-stat {
+    align-self: stretch;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-card,
+  .pf-card-photo,
+  .pf-star,
+  .pf-ghost-button {
+    transition: none;
+  }
+
+  .pf-card:hover,
+  .pf-card:hover .pf-card-photo,
+  .pf-star:hover {
+    transform: none;
+  }
+}

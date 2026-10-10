@@ -2,6 +2,7 @@ import logo from "./assets/logo.png";
 import React, { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
 import "./App.css";
+import "./profile-page.css";
 
 const days = ["Monday", "Tuesday", "Wednesday", "Thursday"];
 const mealTypes = ["Breakfast", "Lunch", "Dinner"];
@@ -81,6 +82,9 @@ const initialPlan = {
   },
 };
 
+// Emoji shown on a favourite card when the recipe has no photo yet
+const mealEmoji = { Breakfast: "🥣", Lunch: "🥪", Dinner: "🍝" };
+
 function App() {
   // ---------- Planner state ----------
   const [mealPlan, setMealPlan] = useState(initialPlan);
@@ -97,14 +101,19 @@ function App() {
     () => localStorage.getItem("studentName") || ""
   );
 
-  // Favourite recipe IDs (saved in the browser)
-  const [favoriteRecipeIds, setFavoriteRecipeIds] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("favoriteRecipeIds") || "[]");
-    } catch {
-      return [];
-    }
-  });
+  // Inline name editor on the profile page
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+
+  // The signed-in Supabase user (an anonymous user is created automatically)
+  const [userId, setUserId] = useState(null);
+
+  // This user's favourite recipes, as full recipe rows from the database
+  const [favourites, setFavourites] = useState([]);
+  const [favouritesReady, setFavouritesReady] = useState(false);
+
+  // Bump this number to re-fetch the favourites from the database
+  const [favouritesVersion, setFavouritesVersion] = useState(0);
 
   // The latest Supabase fetch result, stored together with the id it
   // belongs to.
@@ -115,12 +124,59 @@ function App() {
     localStorage.setItem("studentName", studentName);
   }, [studentName]);
 
+  // Sign in anonymously (or reuse the saved session) so each browser gets
+  // its own user id to attach favourites to.
   useEffect(() => {
-    localStorage.setItem(
-      "favoriteRecipeIds",
-      JSON.stringify(favoriteRecipeIds)
-    );
-  }, [favoriteRecipeIds]);
+    let cancelled = false;
+
+    async function signIn() {
+      const { data: sessionData } = await supabase.auth.getSession();
+      let user = sessionData.session?.user ?? null;
+
+      if (!user) {
+        const { data, error } = await supabase.auth.signInAnonymously();
+        if (error) {
+          console.error("Anonymous sign-in failed:", error.message);
+          return;
+        }
+        user = data.user;
+      }
+
+      if (!cancelled) setUserId(user.id);
+    }
+
+    signIn();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load this user's favourites, with the full recipe attached to each one.
+  useEffect(() => {
+    if (!userId) return undefined;
+
+    let cancelled = false;
+
+    supabase
+      .from("favourites")
+      .select("created_at, Recipes(*)")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("Couldn't load favourites:", error.message);
+        } else {
+          setFavourites(data.map((row) => row.Recipes).filter(Boolean));
+        }
+        setFavouritesReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, favouritesVersion]);
 
   // Fetch the full recipe row whenever a recipe is opened.
   // State is only set inside .then(), never synchronously in the effect body.
@@ -161,6 +217,9 @@ function App() {
   // Returns the value if it's an array, otherwise an empty list.
   const asList = (value) => (Array.isArray(value) ? value : []);
 
+  // Just the ids, for the quick "is this a favourite?" checks on the hearts.
+  const favoriteRecipeIds = favourites.map((recipe) => recipe.id);
+
   // Build the shopping list from all selected meals.
   const shoppingItems = [
     ...new Set(
@@ -173,12 +232,44 @@ function App() {
   ].sort();
 
   // ---------- Handlers ----------
-  function toggleFavorite(recipeId) {
-    setFavoriteRecipeIds((current) =>
-      current.includes(recipeId)
-        ? current.filter((id) => id !== recipeId)
-        : [...current, recipeId]
+  async function toggleFavorite(recipe) {
+    if (!userId) return;
+
+    const isFavourite = favoriteRecipeIds.includes(recipe.id);
+
+    // Update the screen straight away, then confirm with the database.
+    setFavourites((current) =>
+      isFavourite
+        ? current.filter((item) => item.id !== recipe.id)
+        : [
+            {
+              id: recipe.id,
+              name: recipe.name,
+              mealType: recipe.type ?? recipe.mealType,
+              time_mins: recipe.time ?? recipe.time_mins,
+              image_url: recipe.image_url ?? null,
+            },
+            ...current,
+          ]
     );
+
+    const { error } = isFavourite
+      ? await supabase
+          .from("favourites")
+          .delete()
+          .eq("user_id", userId)
+          .eq("recipe_id", recipe.id)
+      : await supabase
+          .from("favourites")
+          .upsert(
+            { user_id: userId, recipe_id: recipe.id },
+            { onConflict: "user_id,recipe_id", ignoreDuplicates: true }
+          );
+
+    if (error) console.error("Couldn't update favourite:", error.message);
+
+    // Re-sync with the database. This also undoes the change if it failed.
+    setFavouritesVersion((version) => version + 1);
   }
 
   function openMealPicker(day, type) {
@@ -226,9 +317,7 @@ function App() {
 
   // ---------- Profile page ----------
   if (currentPage === "profile") {
-    const favoriteRecipes = recipes.filter((recipe) =>
-      favoriteRecipeIds.includes(recipe.id)
-    );
+    const favoriteRecipes = favourites;
 
     return (
       <div className="app">
@@ -266,7 +355,7 @@ function App() {
           </span>
         </header>
 
-        <main className="page profile-page">
+        <main className="page pf-page">
           <button
             className="back-button"
             onClick={() => setCurrentPage("planner")}
@@ -274,59 +363,98 @@ function App() {
             ← Back to meal planner
           </button>
 
-          <section className="profile-hero">
-            <div className="profile-avatar">👩‍🍳</div>
-
-            <p className="eyebrow">YOUR LITTLE CORNER OF THE KITCHEN</p>
-
-            <h1>
+          <section className="pf-hero">
+            <div className="pf-avatar" aria-hidden="true">
               {studentName.trim()
-                ? `Hey, ${studentName.trim()}!`
-                : "Your student profile"}
-            </h1>
-
-            <p className="subtitle">
-              Your kitchen identity, your favourite meals, your questionable
-              student food decisions.
-            </p>
-
-            <button
-              className="primary-button"
-              onClick={() => {
-                const name = window.prompt(
-                  "What should we call you?",
-                  studentName
-                );
-
-                if (name !== null) {
-                  setStudentName(name.trim());
-                }
-              }}
-            >
-              ✏️ Edit my name
-            </button>
-          </section>
-
-          <section className="profile-recipes-section">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">YOUR PERSONAL HALL OF FAME</p>
-                <h2>⭐ Favourite recipes</h2>
-                <p className="subtitle">
-                  {favoriteRecipes.length} recipe
-                  {favoriteRecipes.length === 1 ? "" : "s"} saved for your
-                  next hunger emergency.
-                </p>
-              </div>
+                ? studentName.trim().charAt(0).toUpperCase()
+                : "👩‍🍳"}
             </div>
 
-            {favoriteRecipes.length === 0 ? (
-              <div className="profile-empty-state">
+            <div className="pf-hero-body">
+              {isEditingName ? (
+                <form
+                  className="pf-name-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setStudentName(nameDraft.trim());
+                    setIsEditingName(false);
+                  }}
+                >
+                  <label className="pf-name-label" htmlFor="student-name">
+                    What should we call you?
+                  </label>
+                  <div className="pf-name-row">
+                    <input
+                      id="student-name"
+                      className="pf-name-input"
+                      value={nameDraft}
+                      onChange={(event) => setNameDraft(event.target.value)}
+                      maxLength={30}
+                      autoFocus
+                    />
+                    <button type="submit" className="primary-button">
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="pf-ghost-button"
+                      onClick={() => setIsEditingName(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <h1>
+                    {studentName.trim()
+                      ? `Hey, ${studentName.trim()}!`
+                      : "Your student profile"}
+                  </h1>
+                  <p className="pf-tagline">
+                    Your kitchen, your favourites, your questionable student
+                    food decisions.
+                  </p>
+                  <button
+                    className="pf-ghost-button"
+                    onClick={() => {
+                      setNameDraft(studentName);
+                      setIsEditingName(true);
+                    }}
+                  >
+                    ✏️ Edit name
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="pf-stat">
+              <strong>{favouritesReady ? favoriteRecipes.length : "–"}</strong>
+              <span>
+                {favoriteRecipes.length === 1 ? "favourite" : "favourites"}
+              </span>
+            </div>
+          </section>
+
+          <section className="pf-section">
+            <div className="pf-section-header">
+              <h2>Favourite recipes</h2>
+              <p>Saved for your next hunger emergency.</p>
+            </div>
+
+            {!favouritesReady ? (
+              <div className="pf-grid" aria-busy="true">
+                {[0, 1, 2].map((slot) => (
+                  <div className="pf-skeleton" key={slot} />
+                ))}
+              </div>
+            ) : favoriteRecipes.length === 0 ? (
+              <div className="pf-empty">
                 <span>🍝</span>
-                <h3>It's looking a little empty in here!</h3>
+                <h3>No favourites yet</h3>
                 <p>
-                  Head to your meal planner and tap ☆ on a recipe to add it
-                  to your favourites.
+                  Tap the ☆ on any recipe in your planner and it will show up
+                  here.
                 </p>
                 <button
                   className="primary-button"
@@ -336,51 +464,57 @@ function App() {
                 </button>
               </div>
             ) : (
-              <div className="favorite-recipe-grid">
+              <div className="pf-grid">
                 {favoriteRecipes.map((recipe) => (
-                  <article className="favorite-recipe-card" key={recipe.id}>
-                    <div className="favorite-card-icon">
-                      {recipe.type === "Breakfast"
-                        ? "🥣"
-                        : recipe.type === "Lunch"
-                          ? "🥪"
-                          : "🍝"}
-                    </div>
+                  <article className="pf-card" key={recipe.id}>
+                    <button
+                      className="pf-card-link"
+                      onClick={() => {
+                        setCurrentPage("planner");
+                        setViewingRecipe(recipe);
+                      }}
+                    >
+                      <div className="pf-card-media">
+                        {recipe.image_url ? (
+                          <img
+                            className="pf-card-photo"
+                            src={recipe.image_url}
+                            alt={recipe.name}
+                          />
+                        ) : (
+                          <div
+                            className={`pf-card-placeholder pf-card-placeholder--${String(
+                              recipe.mealType ?? ""
+                            ).toLowerCase()}`}
+                          >
+                            {mealEmoji[recipe.mealType] ?? "🍽️"}
+                          </div>
+                        )}
+                        {recipe.mealType && (
+                          <span className="pf-card-type">
+                            {recipe.mealType}
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="favorite-card-content">
-                      <span className="favorite-card-type">
-                        {recipe.type}
-                      </span>
+                      <div className="pf-card-body">
+                        <h3>{recipe.name}</h3>
+                        {recipe.time_mins ? (
+                          <p className="pf-card-meta">
+                            ⏱️ {recipe.time_mins} min
+                          </p>
+                        ) : null}
+                      </div>
+                    </button>
 
-                      <h3>{recipe.name}</h3>
-
-                      <p>⏱️ {recipe.time} minutes</p>
-
-                      <p className="favorite-card-ingredients">
-                        {recipe.ingredients.join(" · ")}
-                      </p>
-                    </div>
-
-                    <div className="favorite-card-actions">
-                      <button
-                        className="primary-button"
-                        onClick={() => {
-                          setCurrentPage("planner");
-                          setViewingRecipe(recipe);
-                        }}
-                      >
-                        View recipe →
-                      </button>
-
-                      <button
-                        className="favorite-button is-favorite"
-                        onClick={() => toggleFavorite(recipe.id)}
-                        aria-label={`Remove ${recipe.name} from favourites`}
-                        title="Remove from favourites"
-                      >
-                        ★
-                      </button>
-                    </div>
+                    <button
+                      className="pf-star"
+                      onClick={() => toggleFavorite(recipe)}
+                      aria-label={`Remove ${recipe.name} from favourites`}
+                      title="Remove from favourites"
+                    >
+                      ★
+                    </button>
                   </article>
                 ))}
               </div>
@@ -441,7 +575,7 @@ function App() {
                       ? "is-favorite"
                       : ""
                   }`}
-                  onClick={() => toggleFavorite(viewingRecipe.id)}
+                  onClick={() => toggleFavorite(viewingRecipe)}
                 >
                   {favoriteRecipeIds.includes(viewingRecipe.id)
                     ? "★ Remove from favourites"
@@ -613,7 +747,7 @@ function App() {
                                   ? "is-favorite"
                                   : ""
                               }`}
-                              onClick={() => toggleFavorite(meal.id)}
+                              onClick={() => toggleFavorite(meal)}
                               aria-label={
                                 favoriteRecipeIds.includes(meal.id)
                                   ? "Remove from favourites"
