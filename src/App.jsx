@@ -129,6 +129,46 @@ function App() {
   // Returns the value if it's an array, otherwise an empty list.
   const asList = (value) => (Array.isArray(value) ? value : []);
 
+  // Student profile
+const [studentName, setStudentName] = useState(
+  () => localStorage.getItem("studentName") || ""
+);
+
+// Favourite recipe IDs
+const [favoriteRecipeIds, setFavoriteRecipeIds] = useState(() => {
+  try {
+    return JSON.parse(
+      localStorage.getItem("favoriteRecipeIds") || "[]"
+    );
+  } catch {
+    return [];
+  }
+});
+
+
+const [currentPage, setCurrentPage] = useState("planner");
+
+// Save the name and favourites in the browser
+useEffect(() => {
+  localStorage.setItem("studentName", studentName);
+}, [studentName]);
+
+useEffect(() => {
+  localStorage.setItem(
+    "favoriteRecipeIds",
+    JSON.stringify(favoriteRecipeIds)
+  );
+}, [favoriteRecipeIds]);
+
+// Add or remove a favourite
+function toggleFavorite(recipeId) {
+  setFavoriteRecipeIds((current) =>
+    current.includes(recipeId)
+      ? current.filter((id) => id !== recipeId)
+      : [...current, recipeId]
+  );
+}
+
   // Build the shopping list from all selected meals.
   const shoppingItems = [
     ...new Set(
@@ -183,27 +223,233 @@ function App() {
     );
   }
 
-  // ---------- Recipe detail page ----------
-  if (viewingRecipe) {
-    return (
-      <div className="app">
-        <header className="topbar">
-          <a
-            className="brand"
-            href="#"
-            onClick={(event) => {
-              event.preventDefault();
-              setViewingRecipe(null);
+  
+const recipeDetails = {
+  1: {
+    difficulty: "Easy",
+    ingredients: [
+      "50g oats",
+      "250ml milk",
+      "1 banana",
+    ],
+    instructions: [
+      "Add the oats and milk to a saucepan.",
+      "Heat gently for 4–5 minutes, stirring regularly.",
+      "Slice the banana and add it on top.",
+      "Enjoy your breakfast!",
+    ],
+  },
+  2: {
+    difficulty: "Easy",
+    ingredients: [
+      "2 eggs",
+      "2 slices of bread",
+    ],
+    instructions: [
+      "Toast the bread.",
+      "Cook the eggs to your liking.",
+      "Place the eggs on the toast and serve.",
+    ],
+  },
+  3: {
+    difficulty: "Easy",
+    ingredients: [
+      "1 chicken portion",
+      "1 wrap",
+      "A handful of lettuce",
+    ],
+    instructions: [
+      "Cook the chicken thoroughly.",
+      "Wash and prepare the lettuce.",
+      "Place the chicken and lettuce in the wrap.",
+      "Fold, serve and enjoy!",
+    ],
+  },
+};
+
+if (currentPage === "profile") {
+  const favoriteRecipes = recipes.filter((recipe) =>
+    favoriteRecipeIds.includes(recipe.id)
+  );
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <a
+          className="brand"
+          href="#"
+          onClick={(event) => {
+            event.preventDefault();
+            setCurrentPage("planner");
+          }}
+        >
+          <span>Don't Starve in Uni!</span>
+          <img
+            className="brand-logo"
+            src={logo}
+            alt="Don't Starve in Uni logo"
+          />
+        </a>
+
+        <nav>
+          <button
+            className="profile-nav-button"
+            onClick={() => setCurrentPage("planner")}
+          >
+            Meal planner
+          </button>
+          <button className="profile-nav-button nav-active">
+            My profile
+          </button>
+        </nav>
+
+        <span className="student-label">
+          👤 {studentName.trim() || "Student"}
+        </span>
+      </header>
+
+      <main className="page profile-page">
+        <button
+          className="back-button"
+          onClick={() => setCurrentPage("planner")}
+        >
+          ← Back to meal planner
+        </button>
+
+        <section className="profile-hero">
+          <div className="profile-avatar">👩‍🍳</div>
+
+          <p className="eyebrow">YOUR LITTLE CORNER OF THE KITCHEN</p>
+
+          <h1>
+            {studentName.trim()
+              ? `Hey, ${studentName.trim()}!`
+              : "Your student profile"}
+          </h1>
+
+          <p className="subtitle">
+            Your kitchen identity, your favourite meals, your
+            questionable student food decisions.
+          </p>
+
+          <button
+            className="primary-button"
+            onClick={() => {
+              const name = window.prompt(
+                "What should we call you?",
+                studentName
+              );
+
+              if (name !== null) {
+                setStudentName(name.trim());
+              }
             }}
           >
-            <span>Don't Starve in Uni!</span>
-            <img
-              className="brand-logo"
-              src={logo}
-              alt="Don't Starve in Uni logo"
-            />
-          </a>
-        </header>
+            ✏️ Edit my name
+          </button>
+        </section>
+
+        <section className="profile-recipes-section">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">YOUR PERSONAL HALL OF FAME</p>
+              <h2>⭐ Favourite recipes</h2>
+              <p className="subtitle">
+                {favoriteRecipes.length} recipe
+                {favoriteRecipes.length === 1 ? "" : "s"} saved for
+                your next hunger emergency.
+              </p>
+            </div>
+          </div>
+
+          {favoriteRecipes.length === 0 ? (
+            <div className="profile-empty-state">
+              <span>🍝</span>
+              <h3>It's looking a little empty in here!</h3>
+              <p>
+                Head to your meal planner and tap ☆ on a recipe
+                to add it to your favourites.
+              </p>
+              <button
+                className="primary-button"
+                onClick={() => setCurrentPage("planner")}
+              >
+                Find some recipes →
+              </button>
+            </div>
+          ) : (
+            <div className="favorite-recipe-grid">
+              {favoriteRecipes.map((recipe) => (
+                <article className="favorite-recipe-card" key={recipe.id}>
+                  <div className="favorite-card-icon">
+                    {recipe.type === "Breakfast"
+                      ? "🥣"
+                      : recipe.type === "Lunch"
+                        ? "🥪"
+                        : "🍝"}
+                  </div>
+
+                  <div className="favorite-card-content">
+                    <span className="favorite-card-type">
+                      {recipe.type}
+                    </span>
+
+                    <h3>{recipe.name}</h3>
+
+                    <p>⏱️ {recipe.time} minutes</p>
+
+                    <p className="favorite-card-ingredients">
+                      {recipe.ingredients.join(" · ")}
+                    </p>
+                  </div>
+
+                  <div className="favorite-card-actions">
+                    <button className="primary-button" onClick={() => { setCurrentPage("planner"); setViewingRecipe(recipe); }} >
+                      View recipe →
+                    </button>
+
+                    <button
+                      className="favorite-button is-favorite"
+                      onClick={() => toggleFavorite(recipe.id)}
+                      aria-label={`Remove ${recipe.name} from favourites`}
+                      title="Remove from favourites"
+                    >
+                      ★
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+    </div>
+  );
+}
+
+
+if (viewingRecipe) {
+
+
+  const details = recipeDetails[viewingRecipe.id];
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <a className="brand" href="#"
+          onClick={(event) => {
+            event.preventDefault();
+            setViewingRecipe(null);
+          }}
+        >
+          <span>Don't Starve in Uni!</span>
+          <img
+            className="brand-logo"
+            src={logo}
+            alt="Don't Starve in Uni logo"
+          />
+        </a>
+      </header>
 
         <main className="page recipe-page">
           <button
@@ -226,6 +472,19 @@ function App() {
               <section className="recipe-hero">
                 <p className="eyebrow">TONIGHT'S MASTERPIECE</p>
                 <h1>{recipeData.name}</h1>
+
+          <button
+  className={`favorite-button recipe-favorite ${
+    favoriteRecipeIds.includes(viewingRecipe.id)
+      ? "is-favorite"
+      : ""
+  }`}
+  onClick={() => toggleFavorite(viewingRecipe.id)}
+>
+  {favoriteRecipeIds.includes(viewingRecipe.id)
+    ? "★ Remove from favourites"
+    : "☆ Add to favourites"}
+</button>
 
                 <div className="recipe-meta">
                   {recipeData.time_mins && (
@@ -333,7 +592,12 @@ function App() {
           <a href="#shopping">Shopping list</a>
         </nav>
 
-        <div className="student-label">Account</div>
+        <button
+          className="student-label"
+          onClick={() => setCurrentPage("profile")}
+        >
+          👤 {studentName.trim() || "My Profile"}
+      </button>
       </header>
 
       <main className="page">
@@ -386,6 +650,24 @@ function App() {
                         {meal ? (
                           <div className="meal-card">
                             <button
+  className={`favorite-button ${
+    favoriteRecipeIds.includes(meal.id) ? "is-favorite" : ""
+  }`}
+  onClick={() => toggleFavorite(meal.id)}
+  aria-label={
+    favoriteRecipeIds.includes(meal.id)
+      ? "Remove from favourites"
+      : "Add to favourites"
+  }
+  title={
+    favoriteRecipeIds.includes(meal.id)
+      ? "Remove from favourites"
+      : "Add to favourites"
+  }
+>
+  {favoriteRecipeIds.includes(meal.id) ? "★" : "☆"}
+</button>
+    <button
                               className="recipe-link"
                               onClick={() => setViewingRecipe(meal)}
                             >
