@@ -11,8 +11,6 @@ We povide a recipes and shopping lists to get you from surving your first few we
 ## Contributors:
 | Name          | Role     |
 | ------------- | -------- |
-| Ivan Ambep    ||
 | Ciara Behan   | Frontend |
 | Michal Hanzel ||
 | Tadhg Mulvey  ||
-
