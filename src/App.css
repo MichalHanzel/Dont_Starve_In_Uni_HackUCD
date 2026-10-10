@@ -1397,3 +1397,82 @@ button.student-label:hover {
   top: 12px;
   right: 12px;
 }
+
+
+/* Preferences and onboarding page */
+
+.preferences-hero {
+  text-align: center;
+  max-width: 760px;
+  margin: 36px auto;
+}
+
+.preferences-hero h1 {
+  max-width: none;
+  margin: 12px 0;
+}
+
+.preferences-panel {
+  max-width: 760px;
+  margin: 0 auto 48px;
+  padding: 32px;
+  background: #fff;
+  border: 1px solid #e8e2d6;
+  border-radius: 20px;
+  box-shadow: 0 8px 28px rgba(20, 35, 60, 0.06);
+}
+
+.preferences-panel h2 {
+  margin: 30px 0 14px;
+}
+
+.preferences-panel h2:first-child {
+  margin-top: 0;
+}
+
+.preference-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0 26px;
+}
+
+.preference-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid #ddd7ca;
+  border-radius: 12px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.preference-option:has(input:checked) {
+  background: #fff4d7;
+  border-color: #d9a52e;
+}
+
+.preference-option input {
+  accent-color: #d9a52e;
+}
+
+.preferences-panel select,
+.preferences-panel textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #ddd7ca;
+  border-radius: 10px;
+  font: inherit;
+  background: #fff;
+}
+
+.preferences-panel textarea {
+  resize: vertical;
+  margin: 8px 0 22px;
+}
+
+.preferences-save {
+  width: 100%;
+  margin-top: 16px;
+}

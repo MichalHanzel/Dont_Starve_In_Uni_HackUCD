@@ -85,6 +85,30 @@ const initialPlan = {
 // Emoji shown on a favourite card when the recipe has no photo yet
 const mealEmoji = { Breakfast: "🥣", Lunch: "🥪", Dinner: "🍝" };
 
+// Options shown on the onboarding / preferences page
+const preferenceOptions = {
+  equipment: ["Microwave", "Hob", "Oven", "Air fryer", "Toaster", "Kettle"],
+  cuisines: ["Italian", "Asian", "Mexican", "Indian", "Mediterranean", "Irish"],
+  dietary: [
+    "Vegetarian",
+    "Vegan",
+    "Pescatarian",
+    "Gluten-free",
+    "Dairy-free",
+    "Halal",
+  ],
+};
+
+const defaultPreferences = {
+  equipment: [],
+  cuisines: [],
+  skill: "Beginner",
+  dietary: [],
+  budget: "€30–€40",
+  cookingTime: "20–30 minutes",
+  dislikes: "",
+};
+
 function App() {
   // ---------- Planner state ----------
   const [mealPlan, setMealPlan] = useState(initialPlan);
@@ -94,7 +118,25 @@ function App() {
   const [viewingRecipe, setViewingRecipe] = useState(null);
 
   // ---------- Navigation ----------
-  const [currentPage, setCurrentPage] = useState("planner");
+  // New users start on the onboarding page; once they've saved their
+  // preferences they go straight to the planner on later visits.
+  const [currentPage, setCurrentPage] = useState(() =>
+    localStorage.getItem("onboardingCompleted") === "true"
+      ? "planner"
+      : "onboarding"
+  );
+
+  // ---------- Preferences (saved in the browser) ----------
+  const [preferences, setPreferences] = useState(() => {
+    try {
+      return {
+        ...defaultPreferences,
+        ...JSON.parse(localStorage.getItem("studentPreferences") || "{}"),
+      };
+    } catch {
+      return defaultPreferences;
+    }
+  });
 
   // ---------- Student profile (saved in the browser) ----------
   const [studentName, setStudentName] = useState(
@@ -119,7 +161,7 @@ function App() {
   // belongs to.
   const [recipeResult, setRecipeResult] = useState(null);
 
-  // Save the name and favourites in the browser
+  // Save the name in the browser
   useEffect(() => {
     localStorage.setItem("studentName", studentName);
   }, [studentName]);
@@ -232,6 +274,36 @@ function App() {
   ].sort();
 
   // ---------- Handlers ----------
+  function togglePreference(group, value) {
+    setPreferences((current) => {
+      const values = current[group];
+
+      return {
+        ...current,
+        [group]: values.includes(value)
+          ? values.filter((item) => item !== value)
+          : [...values, value],
+      };
+    });
+  }
+
+  function updatePreference(field, value) {
+    setPreferences((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function finishOnboarding() {
+    localStorage.setItem("studentPreferences", JSON.stringify(preferences));
+    localStorage.setItem("onboardingCompleted", "true");
+    setCurrentPage("planner");
+  }
+
+  function editPreferences() {
+    setCurrentPage("onboarding");
+  }
+
   async function toggleFavorite(recipe) {
     if (!userId) return;
 
@@ -312,6 +384,149 @@ function App() {
       current.includes(item)
         ? current.filter((name) => name !== item)
         : [...current, item]
+    );
+  }
+
+  // ---------- Onboarding / preferences page ----------
+  if (currentPage === "onboarding") {
+    return (
+      <div className="app">
+        <header className="topbar">
+          <a
+            className="brand"
+            href="#"
+            onClick={(event) => {
+              event.preventDefault();
+              setCurrentPage("planner");
+            }}
+          >
+            <span>Don't Starve in Uni!</span>
+            <img
+              className="brand-logo"
+              src={logo}
+              alt="Don't Starve in Uni logo"
+            />
+          </a>
+        </header>
+
+        <main className="page preferences-page">
+          <section className="preferences-hero">
+            <p className="eyebrow">LET'S GET TO KNOW YOUR KITCHEN</p>
+            <h1>Your student survival guide 🍳</h1>
+            <p className="subtitle">
+              Tell us what works for you, and make meal planning a little
+              easier on your time, budget, and taste buds.
+            </p>
+          </section>
+
+          <section className="preferences-panel">
+            <h2>1. What equipment do you have?</h2>
+            <p className="subtitle">
+              Select everything available in your kitchen.
+            </p>
+
+            <div className="preference-options">
+              {preferenceOptions.equipment.map((item) => (
+                <label key={item} className="preference-option">
+                  <input
+                    type="checkbox"
+                    checked={preferences.equipment.includes(item)}
+                    onChange={() => togglePreference("equipment", item)}
+                  />
+                  <span>{item}</span>
+                </label>
+              ))}
+            </div>
+
+            <h2>2. What cuisines do you enjoy?</h2>
+            <div className="preference-options">
+              {preferenceOptions.cuisines.map((item) => (
+                <label key={item} className="preference-option">
+                  <input
+                    type="checkbox"
+                    checked={preferences.cuisines.includes(item)}
+                    onChange={() => togglePreference("cuisines", item)}
+                  />
+                  <span>{item}</span>
+                </label>
+              ))}
+            </div>
+
+            <h2>3. How confident are you in the kitchen?</h2>
+            <select
+              value={preferences.skill}
+              onChange={(event) =>
+                updatePreference("skill", event.target.value)
+              }
+            >
+              <option>Beginner</option>
+              <option>Intermediate</option>
+              <option>Advanced</option>
+            </select>
+
+            <h2>4. Any dietary preferences?</h2>
+            <div className="preference-options">
+              {preferenceOptions.dietary.map((item) => (
+                <label key={item} className="preference-option">
+                  <input
+                    type="checkbox"
+                    checked={preferences.dietary.includes(item)}
+                    onChange={() => togglePreference("dietary", item)}
+                  />
+                  <span>{item}</span>
+                </label>
+              ))}
+            </div>
+
+            <h2>5. What's your weekly food budget?</h2>
+            <select
+              value={preferences.budget}
+              onChange={(event) =>
+                updatePreference("budget", event.target.value)
+              }
+            >
+              <option>Under €20</option>
+              <option>€20–€30</option>
+              <option>€30–€40</option>
+              <option>€40–€50</option>
+              <option>€50+</option>
+            </select>
+
+            <h2>6. How much time do you have to cook?</h2>
+            <select
+              value={preferences.cookingTime}
+              onChange={(event) =>
+                updatePreference("cookingTime", event.target.value)
+              }
+            >
+              <option>Under 15 minutes</option>
+              <option>15–20 minutes</option>
+              <option>20–30 minutes</option>
+              <option>30+ minutes</option>
+            </select>
+
+            <h2>7. Anything you dislike or need to avoid?</h2>
+            <p className="subtitle">
+              List ingredients, allergies, or other food requirements.
+            </p>
+            <textarea
+              value={preferences.dislikes}
+              onChange={(event) =>
+                updatePreference("dislikes", event.target.value)
+              }
+              placeholder="e.g. mushrooms, onions, peanuts..."
+              rows={4}
+            />
+
+            <button
+              className="primary-button preferences-save"
+              onClick={finishOnboarding}
+            >
+              Save preferences & start planning →
+            </button>
+          </section>
+        </main>
+      </div>
     );
   }
 
@@ -415,15 +630,23 @@ function App() {
                     Your kitchen, your favourites, your questionable student
                     food decisions.
                   </p>
-                  <button
-                    className="pf-ghost-button"
-                    onClick={() => {
-                      setNameDraft(studentName);
-                      setIsEditingName(true);
-                    }}
-                  >
-                    ✏️ Edit name
-                  </button>
+                  <div className="pf-hero-actions">
+                    <button
+                      className="pf-ghost-button"
+                      onClick={() => {
+                        setNameDraft(studentName);
+                        setIsEditingName(true);
+                      }}
+                    >
+                      ✏️ Edit name
+                    </button>
+                    <button
+                      className="pf-ghost-button"
+                      onClick={editPreferences}
+                    >
+                      ⚙️ Edit preferences
+                    </button>
+                  </div>
                 </>
               )}
             </div>
