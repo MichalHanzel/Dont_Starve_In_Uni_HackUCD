@@ -987,7 +987,6 @@ overflow-x: auto;
   }
 }
 
-<<<<<<< HEAD
 .recipe-image {
   width: 100%;
   max-height: 320px;
@@ -1013,7 +1012,6 @@ overflow-x: auto;
   border-radius: 999px;
   background: #e8f5e9;
   font-size: 0.9rem;
-=======
 
 
 /* Profile button in the navbar */
@@ -1366,5 +1364,5 @@ button.student-label:hover {
   width: 100%;
   text-align: center;
   margin: 10px auto;
->>>>>>> 6f265ceca2f13f5c6b3bd80ce1de4e4712d17ece
+}
 }
